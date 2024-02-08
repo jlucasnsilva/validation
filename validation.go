@@ -32,7 +32,7 @@ var (
 	keyRegExp   = regexp.MustCompile(`\[([a-zA-Z0-9]*)\]$`)
 )
 
-func New(verrs validator.ValidationErrors) Validation {
+func Transform(verrs validator.ValidationErrors) Validation {
 	if verrs == nil {
 		return nil
 	}
