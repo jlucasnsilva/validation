@@ -9,22 +9,20 @@ import (
 )
 
 type (
-	Validation interface {
-		error
-		insert([]pathElem, *Error) Validation
-		get(keys ...any) Validation // get é um método para auxiliar nos testes
-	}
-
-	pathElem struct {
+	fieldPathElem struct {
 		Type  int
 		Index int
 		Field string
 	}
-)
 
-const (
-	elemTypeField = iota
-	elemTypeSlice
+	TranslatorFunc func(Error) string
+
+	Validation interface {
+		error
+		Translate(TranslatorFunc) any
+
+		insert([]fieldPathElem, *Error) Validation
+	}
 )
 
 var (
@@ -32,72 +30,91 @@ var (
 	keyRegExp   = regexp.MustCompile(`\[([a-zA-Z0-9]*)\]$`)
 )
 
-func Transform(verrs validator.ValidationErrors) Validation {
-	if verrs == nil {
+const (
+	errField = iota
+	errSlice
+)
+
+func Convert(err error) error {
+	if err == nil {
 		return nil
 	}
 
-	m := make(Map)
-	for _, e := range verrs {
-		if p := splitNamespace(e.Namespace()); p != nil {
-			m.insert(p, newError(e))
-		}
+	errs, ok := err.(validator.ValidationErrors)
+	if !ok {
+		return err
 	}
+
+	m := make(Map)
+	for _, e := range errs {
+		pathElems := splitNamespace(e.Namespace())
+		verr := &Error{
+			Type:  e.Tag(),
+			Field: e.Field(),
+			Param: e.Param(),
+			Value: e.Value(),
+			Path:  e.Namespace(),
+		}
+		m.insert(pathElems, verr)
+	}
+
 	return m
 }
 
-func splitNamespace(namespace string) []pathElem {
-	parts := strings.Split(namespace, ".")
+func splitNamespace(errNamespace string) []fieldPathElem {
+	parts := strings.Split(errNamespace, ".")
 
 	switch len(parts) {
+	case 0:
+		return nil
 	case 1:
-		return []pathElem{{Type: elemTypeField, Field: namespace}}
+		return []fieldPathElem{{Type: errField, Field: errNamespace}}
 	case 2:
-		return createPathElems(parts[1], true)
+		return createFieldErrorPathElem(parts[1], true)
 	default:
-		result := make([]pathElem, 0, len(parts)-1)
+		result := make([]fieldPathElem, 0, len(parts)-1)
 		tail := parts[1:]
 		lastIdx := len(tail) - 1
 		for i, part := range tail {
-			elems := createPathElems(part, i == lastIdx)
-			result = append(result, elems...)
+			pathElems := createFieldErrorPathElem(part, i == lastIdx)
+			result = append(result, pathElems...)
 		}
 		return result
 	}
 }
 
-func createPathElems(part string, isLast bool) []pathElem {
+func createFieldErrorPathElem(part string, isLast bool) []fieldPathElem {
 	if !strings.HasSuffix(part, "]") {
-		return []pathElem{{
-			Type:  elemTypeField,
+		return []fieldPathElem{{
+			Type:  errField,
 			Field: part,
 		}}
 	}
 
 	name, index, key := pathSection(part)
 	if key == "" {
-		return []pathElem{
+		return []fieldPathElem{
 			{
 				Field: name,
-				Type:  elemTypeField,
+				Type:  errField,
 			},
 			{
 				Index: index,
-				Type:  elemTypeSlice,
+				Type:  errSlice,
 			},
 		}
 	}
 
-	return []pathElem{
+	return []fieldPathElem{
 		{
 			Field: name,
 			Index: index,
-			Type:  elemTypeField,
+			Type:  errField,
 		},
 		{
 			Field: key,
 			Index: index,
-			Type:  elemTypeField,
+			Type:  errField,
 		},
 	}
 }

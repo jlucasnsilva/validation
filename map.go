@@ -9,7 +9,11 @@ type (
 	Map map[string]Validation
 )
 
-func (err Map) insert(valuePath []pathElem, e *Error) Validation {
+func New(field, err string) Validation {
+	return Map{field: &Error{Type: err}}
+}
+
+func (err Map) insert(valuePath []fieldPathElem, verr *Error) Validation {
 	if len(valuePath) < 1 {
 		return err
 	}
@@ -18,41 +22,20 @@ func (err Map) insert(valuePath []pathElem, e *Error) Validation {
 	tail := valuePath[1:]
 
 	if len(tail) < 1 {
-		err[head.Field] = e
+		err[head.Field] = verr
 		return err
 	}
 
 	next, ok := err[head.Field]
 	if !ok {
-		if t := tail[0]; t.Type == elemTypeField {
+		if t := tail[0]; t.Type == errField {
 			next = make(Map)
-		} else if t.Type == elemTypeSlice {
+		} else if t.Type == errSlice {
 			next = make(Slice, 0, 5)
 		}
 	}
-	err[head.Field] = next.insert(tail, e)
+	err[head.Field] = next.insert(tail, verr)
 	return err
-}
-
-func (err Map) get(keys ...any) Validation {
-	if len(keys) < 1 {
-		return err
-	}
-
-	k, ok := keys[0].(string)
-	if !ok {
-		s := fmt.Sprintf(
-			"##)) ErrorMap: key '%v' (of type %T) should be of type string",
-			keys[0],
-			keys[0],
-		)
-		panic(s)
-	}
-
-	if len(keys) < 2 {
-		return err[k]
-	}
-	return err[k].get(keys[1:]...)
 }
 
 func (err Map) Error() string {
@@ -61,4 +44,12 @@ func (err Map) Error() string {
 		parts = append(parts, fmt.Sprintf(`"%v": %v`, k, v.Error()))
 	}
 	return "{" + strings.Join(parts, ", ") + "}"
+}
+
+func (err Map) Translate(tr TranslatorFunc) any {
+	m := make(map[string]any)
+	for k, v := range err {
+		m[k] = v.Translate(tr)
+	}
+	return m
 }
