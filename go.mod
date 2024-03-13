@@ -1,11 +1,10 @@
-module github.com/jlucasnsilva/validation
+module github.com/jlucasnsilva/verno
 
 go 1.20
 
 require (
 	github.com/go-playground/validator/v10 v10.17.0
 	github.com/stretchr/testify v1.8.4
-	gopkg.in/yaml.v3 v3.0.1
 )
 
 require (
@@ -19,4 +18,5 @@ require (
 	golang.org/x/net v0.8.0 // indirect
 	golang.org/x/sys v0.6.0 // indirect
 	golang.org/x/text v0.8.0 // indirect
+	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
